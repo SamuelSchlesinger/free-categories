@@ -163,3 +163,24 @@ afterAll
   :: (QFoldable c, CFree path)
   => (forall x. p x x) -> c p x y -> path p x y
 afterAll sep = qfoldMap (\p -> qsingle p >>> qsingle sep)
+
+data Q c a b where
+  Q :: Path c a x -> Path c y x -> Path (OpQ c) b x -> Q c a b
+
+rotate :: Path c a b -> Path (OpQ c) d b -> Path c d x -> Path c a x
+rotate Done (c :>> Done) a = getOpQ c :>> a
+rotate (c :>> f) (c' :>> r) a = c :>> rotate f r (getOpQ c' :>> a)
+
+queue :: Q c a b -> Q c a b
+queue (Q f (x :>> s)  r) = x `seq` Q f s r
+queue (Q f Done r) = Q f' f' Done where
+  f' = rotate f r Done
+
+snoc :: Q c x y -> c y z -> Q c x z
+snoc (Q f s r) x = queue (Q f s (OpQ x :>> r))
+
+cons :: Q c y z -> c x y -> Q c x z
+cons (Q f s r) x = queue (Q (x :>> f) s r)
+
+flatten :: Q c a b -> Path c a b
+flatten (Q f _ r) = rotate f r Done
